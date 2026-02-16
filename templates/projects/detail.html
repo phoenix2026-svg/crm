@@ -1,0 +1,665 @@
+{% extends "base.html" %}
+{% block title %}{{ project.project_name }} — CRM{% endblock %}
+{% block content %}
+
+<!-- Заголовок -->
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h4 class="mb-1">{{ project.project_name }}</h4>
+        <span class="badge bg-secondary">{{ project.status_label }}</span>
+        {% if project.days_left is not none %}
+            {% if project.days_left < 0 %}
+            <span class="badge bg-danger">Просрочено на {{ (-project.days_left) }} дн.</span>
+            {% elif project.days_left == 0 %}
+            <span class="badge bg-warning text-dark">Дедлайн сегодня</span>
+            {% else %}
+            <span class="badge bg-success">Осталось {{ project.days_left }} дн.</span>
+            {% endif %}
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('projects.project_edit', project_id=project.id) }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil"></i> Редактировать
+        </a>
+        <form method="POST" action="{{ url_for('projects.project_delete', project_id=project.id) }}"
+              onsubmit="return confirm('Перевести проект в статус «Отменён»?')">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-archive"></i> Архив</button>
+        </form>
+    </div>
+</div>
+
+<!-- Вкладки -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'main' %}active{% endif %}"
+           href="?tab=main">Основное</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'payments' %}active{% endif %}"
+           href="?tab=payments">План оплат
+            {% set ppt = project.payment_percent_total %}
+            {% if ppt != 100 and project.payment_items.count() > 0 %}
+            <span class="badge bg-danger">{{ '%.1f'|format(ppt) }}%</span>
+            {% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'variations' %}active{% endif %}"
+           href="?tab=variations">Доп. работы
+            {% if project.variations.count() > 0 %}
+            <span class="badge bg-info text-dark">{{ project.variations.count() }}</span>
+            {% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'tasks' %}active{% endif %}"
+           href="?tab=tasks">Задачи
+            {% set open_count = project.tasks.filter_by(status='open').count() %}
+            {% if open_count > 0 %}
+            <span class="badge bg-warning text-dark">{{ open_count }}</span>
+            {% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if tab == 'documents' %}active{% endif %}"
+           href="?tab=documents">Документы
+            {% if project.documents.count() > 0 %}
+            <span class="badge bg-info text-dark">{{ project.documents.count() }}</span>
+            {% endif %}
+        </a>
+    </li>
+</ul>
+
+<!-- ============ TAB: MAIN ============ -->
+{% if tab == 'main' %}
+<div class="row">
+    <div class="col-lg-6">
+        <table class="table table-sm">
+            <tr><th style="width:200px">Клиент</th><td>{{ project.client_name }}</td></tr>
+            <tr><th>Локация</th><td>{{ project.location_text }}</td></tr>
+            <tr><th>Сумма контракта</th><td>{{ '{:,.2f}'.format(project.contract_amount|float) }} {{ project.currency }}</td></tr>
+            <tr><th>Дата начала</th><td>{{ project.start_date.strftime('%d.%m.%Y') if project.start_date else '—' }}</td></tr>
+            <tr><th>Срок работ</th><td>{{ project.duration_days or '—' }} дн.</td></tr>
+            <tr><th>Дата окончания</th><td>{{ project.end_date.strftime('%d.%m.%Y') if project.end_date else '—' }}</td></tr>
+            <tr>
+                <th>Прогресс сроков</th>
+                <td>
+                    {% if project.days_elapsed is not none %}
+                    Прошло {{ project.days_elapsed }} дн.
+                    {% if project.days_left is not none %}
+                     / Осталось {{ project.days_left }} дн.
+                    {% endif %}
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Оплачено</th>
+                <td>
+                    {{ '{:,.2f}'.format(project.paid_amount) }} {{ project.currency }}
+                    ({{ '%.1f'|format(project.paid_percent) }}%)
+                </td>
+            </tr>
+            <tr>
+                <th>Доп. работы (сумма)</th>
+                <td>{{ '{:,.2f}'.format(project.total_variations_amount) }} {{ project.currency }}</td>
+            </tr>
+        </table>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Комиссия</div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('projects.project_commission_set', project_id=project.id) }}"
+                      class="row g-2 align-items-end mb-3">
+                    <div class="col-auto">
+                        <label class="form-label mb-0">Процент комиссии</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" step="0.01" min="0" max="100" name="commission_percent"
+                                   class="form-control" style="width:100px"
+                                   value="{{ project.commission_percent|float }}">
+                            <span class="input-group-text">%</span>
+                            <button type="submit" class="btn btn-primary btn-sm">Сохранить</button>
+                        </div>
+                    </div>
+                </form>
+                {% if project.commission_percent|float > 0 %}
+                <table class="table table-sm mb-0">
+                    <tr><th>Итого комиссия (контракт)</th><td>{{ '{:,.2f}'.format(project.commission_total) }} {{ project.currency }}</td></tr>
+                    <tr><th>Получено</th><td class="text-success">{{ '{:,.2f}'.format(project.commission_received) }} {{ project.currency }}</td></tr>
+                    <tr><th>Осталось получить</th><td class="text-danger">{{ '{:,.2f}'.format(project.commission_pending) }} {{ project.currency }}</td></tr>
+                </table>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============ TAB: PAYMENTS ============ -->
+{% if tab == 'payments' %}
+{% set items = project.payment_items.all() %}
+{% set ppt = project.payment_percent_total %}
+
+{% if items and ppt != 100 %}
+<div class="alert alert-danger">
+    <i class="bi bi-exclamation-triangle"></i>
+    Сумма процентов этапов: <strong>{{ '%.2f'|format(ppt) }}%</strong> (должна быть 100%).
+</div>
+{% endif %}
+
+<!-- Прогресс-бар оплат -->
+{% if items %}
+<div class="mb-3">
+    <div class="d-flex justify-content-between mb-1">
+        <small>Оплачено: {{ '{:,.2f}'.format(project.paid_amount) }} {{ project.currency }} ({{ '%.1f'|format(project.paid_percent) }}%)</small>
+        <small>Всего: {{ '{:,.2f}'.format(project.contract_amount|float) }} {{ project.currency }}</small>
+    </div>
+    <div class="progress" style="height:24px">
+        <div class="progress-bar bg-success" style="width:{{ project.paid_percent }}%">
+            {{ '%.0f'|format(project.paid_percent) }}%
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Таблица этапов -->
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Название этапа</th>
+            <th class="text-end">%</th>
+            <th class="text-end">Сумма</th>
+            <th>Условие</th>
+            <th>Статус</th>
+            <th>Дата счёта</th>
+            <th>Дата оплаты</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr class="{% if item.invoice_status == 'paid' %}table-success{% elif item.invoice_status == 'invoiced' %}table-warning{% endif %}">
+            <td>{{ item.title }}</td>
+            <td class="text-end">{{ '%.2f'|format(item.percent|float) }}%</td>
+            <td class="text-end text-nowrap">{{ '{:,.2f}'.format(item.amount) }}</td>
+            <td>{{ item.due_condition }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('projects.payment_status', item_id=item.id) }}" class="d-inline">
+                    <select name="invoice_status" class="form-select form-select-sm" style="width:auto"
+                            onchange="this.form.submit()">
+                        {% for k, v in item.STATUS_LABELS.items() %}
+                        <option value="{{ k }}" {% if item.invoice_status == k %}selected{% endif %}>{{ v }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </td>
+            <td class="text-nowrap">{{ item.invoice_date.strftime('%d.%m.%Y') if item.invoice_date else '—' }}</td>
+            <td class="text-nowrap">{{ item.paid_date.strftime('%d.%m.%Y') if item.paid_date else '—' }}</td>
+            <td>
+                <!-- Редактирование -->
+                <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+                        data-bs-target="#editPayment{{ item.id }}"><i class="bi bi-pencil"></i></button>
+                <form method="POST" action="{{ url_for('projects.payment_delete', item_id=item.id) }}"
+                      class="d-inline" onsubmit="return confirm('Удалить этап?')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                </form>
+            </td>
+        </tr>
+
+        <!-- Modal: Edit payment -->
+        <div class="modal fade" id="editPayment{{ item.id }}" tabindex="-1">
+            <div class="modal-dialog">
+                <form method="POST" action="{{ url_for('projects.payment_edit', item_id=item.id) }}">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Редактировать этап</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Название</label>
+                                <input type="text" name="title" class="form-control" value="{{ item.title }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Процент</label>
+                                <input type="number" step="0.01" name="percent" class="form-control"
+                                       value="{{ item.percent|float }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Условие</label>
+                                <input type="text" name="due_condition" class="form-control"
+                                       value="{{ item.due_condition }}">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="table-light fw-bold">
+            <td>Итого</td>
+            <td class="text-end {% if ppt != 100 %}text-danger{% endif %}">{{ '%.2f'|format(ppt) }}%</td>
+            <td class="text-end">{{ '{:,.2f}'.format(project.contract_amount|float) }}</td>
+            <td colspan="5"></td>
+        </tr>
+    </tfoot>
+</table>
+</div>
+
+<!-- Добавить этап -->
+<div class="card">
+    <div class="card-header">Добавить этап оплаты</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('projects.payment_add', project_id=project.id) }}" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Название</label>
+                <input type="text" name="title" class="form-control form-control-sm" required placeholder="Deposit, Handover...">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Процент</label>
+                <input type="number" step="0.01" min="0" max="100" name="percent" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Условие (необязательно)</label>
+                <input type="text" name="due_condition" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Добавить</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============ TAB: VARIATIONS ============ -->
+{% if tab == 'variations' %}
+{% set vars = project.variations.all() %}
+
+{% for v in vars %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <strong>{{ v.title }}</strong>
+            <span class="badge bg-secondary">{{ v.status_label }}</span>
+            <span class="ms-2">{{ '{:,.2f}'.format(v.extra_amount|float) }} {{ project.currency }}</span>
+        </div>
+        <div class="d-flex gap-1">
+            <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+                    data-bs-target="#editVar{{ v.id }}"><i class="bi bi-pencil"></i></button>
+            <form method="POST" action="{{ url_for('projects.variation_delete', var_id=v.id) }}"
+                  onsubmit="return confirm('Удалить доп. работу и все её этапы?')">
+                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+            </form>
+        </div>
+    </div>
+    <div class="card-body">
+        {% set vpt = v.payment_percent_total %}
+        {% set vitems = v.payment_items.all() %}
+
+        {% if vitems and vpt != 100 %}
+        <div class="alert alert-danger py-1 px-2 mb-2">
+            Сумма % = {{ '%.2f'|format(vpt) }}% (нужно 100%)
+        </div>
+        {% endif %}
+
+        {% if vitems %}
+        <!-- Прогресс доп. работы -->
+        <div class="mb-2">
+            <div class="progress" style="height:16px">
+                <div class="progress-bar bg-info" style="width:{{ v.paid_percent }}%">
+                    {{ '%.0f'|format(v.paid_percent) }}%
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <table class="table table-sm table-bordered mb-2">
+            <thead>
+                <tr>
+                    <th>Этап</th>
+                    <th class="text-end">%</th>
+                    <th class="text-end">Сумма</th>
+                    <th>Статус</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in vitems %}
+                <tr class="{% if item.invoice_status == 'paid' %}table-success{% elif item.invoice_status == 'invoiced' %}table-warning{% endif %}">
+                    <td>{{ item.title }}</td>
+                    <td class="text-end">{{ '%.2f'|format(item.percent|float) }}%</td>
+                    <td class="text-end">{{ '{:,.2f}'.format(item.amount) }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('projects.extra_payment_status', item_id=item.id) }}" class="d-inline">
+                            <select name="invoice_status" class="form-select form-select-sm" style="width:auto"
+                                    onchange="this.form.submit()">
+                                {% for k, lbl in item.STATUS_LABELS.items() %}
+                                <option value="{{ k }}" {% if item.invoice_status == k %}selected{% endif %}>{{ lbl }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+                                data-bs-target="#editExPay{{ item.id }}"><i class="bi bi-pencil"></i></button>
+                        <form method="POST" action="{{ url_for('projects.extra_payment_delete', item_id=item.id) }}"
+                              class="d-inline" onsubmit="return confirm('Удалить?')">
+                            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+
+                <!-- Modal edit extra payment -->
+                <div class="modal fade" id="editExPay{{ item.id }}" tabindex="-1">
+                    <div class="modal-dialog">
+                        <form method="POST" action="{{ url_for('projects.extra_payment_edit', item_id=item.id) }}">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Редактировать этап (доп.)</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Название</label>
+                                        <input type="text" name="title" class="form-control" value="{{ item.title }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Процент</label>
+                                        <input type="number" step="0.01" name="percent" class="form-control"
+                                               value="{{ item.percent|float }}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Условие</label>
+                                        <input type="text" name="due_condition" class="form-control"
+                                               value="{{ item.due_condition }}">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Добавить этап к доп. работе -->
+        <form method="POST" action="{{ url_for('projects.extra_payment_add', var_id=v.id) }}"
+              class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <input type="text" name="title" class="form-control form-control-sm" placeholder="Название этапа" required>
+            </div>
+            <div class="col-md-2">
+                <input type="number" step="0.01" name="percent" class="form-control form-control-sm" placeholder="%" required>
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="due_condition" class="form-control form-control-sm" placeholder="Условие">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary btn-sm w-100">+ Этап</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Edit variation -->
+<div class="modal fade" id="editVar{{ v.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <form method="POST" action="{{ url_for('projects.variation_edit', var_id=v.id) }}">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Редактировать доп. работу</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Название</label>
+                        <input type="text" name="title" class="form-control" value="{{ v.title }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Сумма</label>
+                        <input type="number" step="0.01" name="extra_amount" class="form-control"
+                               value="{{ v.extra_amount|float }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Статус</label>
+                        <select name="status" class="form-select">
+                            {% for k, lbl in v.STATUS_LABELS.items() %}
+                            <option value="{{ k }}" {% if v.status == k %}selected{% endif %}>{{ lbl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+
+<!-- Добавить доп. работу -->
+<div class="card">
+    <div class="card-header">Добавить доп. работу</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('projects.variation_add', project_id=project.id) }}" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Название</label>
+                <input type="text" name="title" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Сумма</label>
+                <input type="number" step="0.01" min="0" name="extra_amount" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Статус</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="draft">Черновик</option>
+                    <option value="approved">Утверждено</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Добавить</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============ TAB: TASKS ============ -->
+{% if tab == 'tasks' %}
+<div class="d-flex gap-2 mb-3">
+    <a href="?tab=tasks&tasks_filter=open"
+       class="btn btn-sm {% if tasks_filter == 'open' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        Открытые
+    </a>
+    <a href="?tab=tasks&tasks_filter=all"
+       class="btn btn-sm {% if tasks_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        Все
+    </a>
+</div>
+
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Задача</th>
+            <th>Описание</th>
+            <th>Дедлайн</th>
+            <th>Статус</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for t in tasks %}
+        <tr class="{% if t.is_overdue %}table-danger{% elif t.status == 'done' %}table-success{% endif %}">
+            <td>{{ t.title }}</td>
+            <td><small class="text-muted">{{ t.description|truncate(80) if t.description else '' }}</small></td>
+            <td class="text-nowrap">
+                {% if t.deadline_date %}
+                {{ t.deadline_date.strftime('%d.%m.%Y') }}
+                {% if t.is_overdue %}<i class="bi bi-exclamation-triangle text-danger"></i>{% endif %}
+                {% else %}—{% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{{ url_for('projects.task_toggle', task_id=t.id) }}" class="d-inline">
+                    <select name="status" class="form-select form-select-sm" style="width:auto"
+                            onchange="this.form.submit()">
+                        <option value="open" {% if t.status == 'open' %}selected{% endif %}>Открыта</option>
+                        <option value="done" {% if t.status == 'done' %}selected{% endif %}>Выполнена</option>
+                        <option value="cancelled" {% if t.status == 'cancelled' %}selected{% endif %}>Отменена</option>
+                    </select>
+                </form>
+            </td>
+            <td>
+                <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal"
+                        data-bs-target="#editTask{{ t.id }}"><i class="bi bi-pencil"></i></button>
+                <form method="POST" action="{{ url_for('projects.task_delete', task_id=t.id) }}"
+                      class="d-inline" onsubmit="return confirm('Удалить задачу?')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                </form>
+            </td>
+        </tr>
+
+        <!-- Modal: Edit task -->
+        <div class="modal fade" id="editTask{{ t.id }}" tabindex="-1">
+            <div class="modal-dialog">
+                <form method="POST" action="{{ url_for('projects.task_edit', task_id=t.id) }}">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Редактировать задачу</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Название</label>
+                                <input type="text" name="title" class="form-control" value="{{ t.title }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Описание</label>
+                                <textarea name="description" class="form-control" rows="3">{{ t.description }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Дедлайн</label>
+                                <input type="date" name="deadline_date" class="form-control"
+                                       value="{{ t.deadline_date.strftime('%Y-%m-%d') if t.deadline_date else '' }}">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Задач нет</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- Добавить задачу -->
+<div class="card">
+    <div class="card-header">Добавить задачу</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('projects.task_add', project_id=project.id) }}" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Название</label>
+                <input type="text" name="title" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Описание</label>
+                <input type="text" name="description" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Дедлайн</label>
+                <input type="date" name="deadline_date" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Добавить</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============ TAB: DOCUMENTS ============ -->
+{% if tab == 'documents' %}
+{% set docs = project.documents.all()|sort(attribute='uploaded_at', reverse=true) %}
+
+<div class="table-responsive">
+<table class="table table-sm align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Тип</th>
+            <th>Файл</th>
+            <th>Дата загрузки</th>
+            <th>Действия</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for doc in docs %}
+        <tr>
+            <td><span class="badge bg-secondary">{{ doc.type_label }}</span></td>
+            <td>{{ doc.original_name }}</td>
+            <td>{{ doc.uploaded_at.strftime('%d.%m.%Y %H:%M') }}</td>
+            <td>
+                <a href="{{ url_for('projects.document_download', doc_id=doc.id) }}"
+                   class="btn btn-outline-primary btn-sm" title="Скачать"><i class="bi bi-download"></i></a>
+                <form method="POST" action="{{ url_for('projects.document_delete', doc_id=doc.id) }}"
+                      class="d-inline" onsubmit="return confirm('Удалить документ?')">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-3">Документы не загружены</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- Загрузить документ -->
+<div class="card">
+    <div class="card-header">Загрузить документ</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('projects.document_upload', project_id=project.id) }}"
+              enctype="multipart/form-data" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Тип документа</label>
+                <select name="doc_type" class="form-select form-select-sm">
+                    <option value="contract">Договор</option>
+                    <option value="estimate">Смета</option>
+                    <option value="other">Прочее</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Файл (PDF, DOC, XLS, изображения, до 50 МБ)</label>
+                <input type="file" name="file" class="form-control form-control-sm" required
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Загрузить</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

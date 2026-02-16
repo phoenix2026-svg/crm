@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Комиссия: {{ project.project_name }} — CRM{% endblock %}
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('commissions.commission_list') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Назад к списку
+    </a>
+</div>
+
+<h4 class="mb-1">Комиссия: {{ project.project_name }}</h4>
+<p class="text-muted">
+    Контракт: {{ '{:,.2f}'.format(project.contract_amount|float) }} {{ project.currency }}
+    &middot; Комиссия: {{ '%.2f'|format(cp) }}%
+</p>
+
+<!-- Сводка -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle text-muted mb-1">Итого комиссия</h6>
+                <h4>{{ '{:,.2f}'.format(grand_total) }} {{ project.currency }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center border-success">
+            <div class="card-body">
+                <h6 class="card-subtitle text-muted mb-1">Получено</h6>
+                <h4 class="text-success">{{ '{:,.2f}'.format(total_received) }} {{ project.currency }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center border-danger">
+            <div class="card-body">
+                <h6 class="card-subtitle text-muted mb-1">Осталось получить</h6>
+                <h4 class="text-danger">{{ '{:,.2f}'.format(grand_pending) }} {{ project.currency }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Этапы контракта -->
+<h5>Этапы контракта</h5>
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Этап</th>
+            <th class="text-end">%</th>
+            <th class="text-end">Сумма этапа</th>
+            <th class="text-end">Комиссия с этапа</th>
+            <th>Статус оплаты</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in contract_stages %}
+        <tr class="{% if s.is_paid %}table-success{% endif %}">
+            <td>{{ s.title }}</td>
+            <td class="text-end">{{ '%.2f'|format(s.percent) }}%</td>
+            <td class="text-end">{{ '{:,.2f}'.format(s.amount) }}</td>
+            <td class="text-end">{{ '{:,.2f}'.format(s.commission) }}</td>
+            <td>
+                <span class="badge {% if s.is_paid %}bg-success{% elif s.status == 'invoiced' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                    {{ s.status_label }}
+                </span>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted text-center">Этапы не заданы</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="fw-bold table-light">
+            <td>Итого (контракт)</td>
+            <td></td>
+            <td class="text-end">{{ '{:,.2f}'.format(project.contract_amount|float) }}</td>
+            <td class="text-end">{{ '{:,.2f}'.format(total_commission) }}</td>
+            <td>Получено: {{ '{:,.2f}'.format(received) }}</td>
+        </tr>
+    </tfoot>
+</table>
+</div>
+
+<!-- Этапы доп. работ -->
+{% if variation_stages %}
+<h5 class="mt-4">Доп. работы</h5>
+{% for vs in variation_stages %}
+<h6>{{ vs.variation_title }} ({{ '{:,.2f}'.format(vs.extra_amount) }} {{ project.currency }})</h6>
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle mb-3">
+    <thead class="table-light">
+        <tr>
+            <th>Этап</th>
+            <th class="text-end">%</th>
+            <th class="text-end">Сумма</th>
+            <th class="text-end">Комиссия</th>
+            <th>Статус</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in vs.stages %}
+        <tr class="{% if s.is_paid %}table-success{% endif %}">
+            <td>{{ s.title }}</td>
+            <td class="text-end">{{ '%.2f'|format(s.percent) }}%</td>
+            <td class="text-end">{{ '{:,.2f}'.format(s.amount) }}</td>
+            <td class="text-end">{{ '{:,.2f}'.format(s.commission) }}</td>
+            <td>
+                <span class="badge {% if s.is_paid %}bg-success{% elif s.status == 'invoiced' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                    {{ s.status_label }}
+                </span>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="mt-3">
+    <a href="{{ url_for('projects.project_detail', project_id=project.id) }}" class="btn btn-outline-primary btn-sm">
+        Открыть проект
+    </a>
+</div>
+{% endblock %}

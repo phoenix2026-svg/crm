@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}Новый лид{% else %}Редактирование лида{% endif %} — CRM{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-lg-6">
+        <h4 class="mb-3">
+            {% if is_new %}Новый лид{% else %}Редактирование лида #{{ lead.id }}{% endif %}
+        </h4>
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">Имя клиента <span class="text-danger">*</span></label>
+                <input type="text" name="client_name" class="form-control"
+                       value="{{ lead.client_name if lead else '' }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Телефон</label>
+                <input type="text" name="phone" class="form-control"
+                       value="{{ lead.phone if lead else '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Локация</label>
+                <input type="text" name="location_text" class="form-control"
+                       value="{{ lead.location_text if lead else '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Описание запроса</label>
+                <textarea name="request_description" class="form-control" rows="3">{{ lead.request_description if lead else '' }}</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Источник</label>
+                <input type="text" name="source" class="form-control"
+                       value="{{ lead.source if lead else '' }}"
+                       placeholder="Откуда пришёл лид">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Статус</label>
+                <select name="status" class="form-select">
+                    <option value="new" {% if lead and lead.status == 'new' %}selected{% endif %}>Новый</option>
+                    <option value="in_progress" {% if lead and lead.status == 'in_progress' %}selected{% endif %}>В работе</option>
+                    <option value="closed" {% if lead and lead.status == 'closed' %}selected{% endif %}>Закрыт</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Комментарий</label>
+                <textarea name="comment" class="form-control" rows="2">{{ lead.comment if lead else '' }}</textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    {% if is_new %}Создать{% else %}Сохранить{% endif %}
+                </button>
+                <a href="{{ url_for('leads.lead_list') }}" class="btn btn-outline-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

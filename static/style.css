@@ -1,0 +1,80 @@
+body {
+    font-size: 14px;
+    background: #f5f6fa;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS standalone safe-area padding (notch/Dynamic Island) */
+.navbar {
+    padding-top: env(safe-area-inset-top);
+}
+
+@supports (padding: env(safe-area-inset-bottom)) {
+    body {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.table th {
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.table td {
+    font-size: 13px;
+}
+
+.card-header {
+    font-weight: 600;
+    font-size: 14px;
+    background: #f8f9fa;
+}
+
+.badge {
+    font-weight: 500;
+}
+
+.progress {
+    border-radius: 4px;
+}
+
+.form-control-sm, .form-select-sm {
+    font-size: 13px;
+}
+
+.btn-sm {
+    font-size: 13px;
+}
+
+.nav-tabs .nav-link {
+    font-size: 14px;
+}
+
+.nav-tabs .nav-link .badge {
+    font-size: 11px;
+    vertical-align: middle;
+}
+
+.table-danger td {
+    background-color: #f8d7da !important;
+}
+
+.table-success td {
+    background-color: #d1e7dd !important;
+}
+
+@media (max-width: 768px) {
+    .container-fluid {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    h4 {
+        font-size: 1.1rem;
+    }
+}

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Проекты — CRM{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Проекты</h4>
+    <a href="{{ url_for('projects.project_create') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Новый проект
+    </a>
+</div>
+
+<!-- Фильтры -->
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-auto">
+        <select name="status" class="form-select form-select-sm">
+            <option value="">Все статусы</option>
+            {% for k, v in statuses.items() %}
+            <option value="{{ k }}" {% if status_filter == k %}selected{% endif %}>{{ v }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <input type="text" name="q" class="form-control form-control-sm"
+               placeholder="Поиск по названию/клиенту" value="{{ search }}">
+    </div>
+    <div class="col-auto">
+        <div class="form-check mt-1">
+            <input class="form-check-input" type="checkbox" name="overdue" value="1" id="overdue"
+                   {% if overdue %}checked{% endif %}>
+            <label class="form-check-label" for="overdue">Просроченные</label>
+        </div>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Найти</button>
+        {% if status_filter or search or overdue %}
+        <a href="{{ url_for('projects.project_list') }}" class="btn btn-outline-danger btn-sm">Сбросить</a>
+        {% endif %}
+    </div>
+</form>
+
+<!-- Таблица -->
+<div class="table-responsive">
+<table class="table table-hover table-sm align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>#</th>
+            <th>Проект</th>
+            <th>Клиент</th>
+            <th>Локация</th>
+            <th class="text-end">Сумма контракта</th>
+            <th>Старт</th>
+            <th>Окончание</th>
+            <th>Осталось дней</th>
+            <th>Статус</th>
+            <th>Оплаты</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in projects %}
+        <tr>
+            <td>{{ p.id }}</td>
+            <td><a href="{{ url_for('projects.project_detail', project_id=p.id) }}">{{ p.project_name }}</a></td>
+            <td>{{ p.client_name }}</td>
+            <td>{{ p.location_text }}</td>
+            <td class="text-end text-nowrap">{{ '{:,.2f}'.format(p.contract_amount|float) }} {{ p.currency }}</td>
+            <td class="text-nowrap">{{ p.start_date.strftime('%d.%m.%Y') if p.start_date else '—' }}</td>
+            <td class="text-nowrap">{{ p.end_date.strftime('%d.%m.%Y') if p.end_date else '—' }}</td>
+            <td>
+                {% if p.days_left is not none %}
+                    {% if p.days_left < 0 %}
+                    <span class="badge bg-danger">Просрочено на {{ (-p.days_left) }} дн.</span>
+                    {% elif p.days_left == 0 %}
+                    <span class="badge bg-warning text-dark">Сегодня</span>
+                    {% else %}
+                    <span class="badge bg-success">{{ p.days_left }} дн.</span>
+                    {% endif %}
+                {% else %}
+                —
+                {% endif %}
+            </td>
+            <td><span class="badge bg-secondary">{{ p.status_label }}</span></td>
+            <td style="min-width:120px">
+                {% set pp = p.paid_percent %}
+                <div class="progress" style="height:18px" title="Оплачено {{ '%.1f'|format(pp) }}%">
+                    <div class="progress-bar {% if pp >= 100 %}bg-success{% elif pp > 0 %}bg-primary{% endif %}"
+                         style="width:{{ pp }}%">
+                        {{ '%.0f'|format(pp) }}%
+                    </div>
+                </div>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="text-center text-muted py-3">Проекты не найдены</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- Пагинация -->
+{% if pagination.pages > 1 %}
+<nav>
+    <ul class="pagination pagination-sm justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.prev_num }}&status={{ status_filter }}&q={{ search }}&overdue={{ overdue }}">
+                &laquo;
+            </a>
+        </li>
+        {% endif %}
+        {% for pg in pagination.iter_pages() %}
+            {% if pg %}
+            <li class="page-item {% if pg == pagination.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ pg }}&status={{ status_filter }}&q={{ search }}&overdue={{ overdue }}">{{ pg }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.next_num }}&status={{ status_filter }}&q={{ search }}&overdue={{ overdue }}">
+                &raquo;
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

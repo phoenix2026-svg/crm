@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{% if is_new %}Новый проект{% else %}Редактирование проекта{% endif %} — CRM{% endblock %}
+{% block content %}
+<div class="row">
+    <div class="col-lg-6">
+        <h4 class="mb-3">
+            {% if is_new %}Новый проект{% else %}Редактирование проекта #{{ project.id }}{% endif %}
+        </h4>
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">Название проекта <span class="text-danger">*</span></label>
+                <input type="text" name="project_name" class="form-control"
+                       value="{{ project.project_name if project else '' }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Клиент</label>
+                <input type="text" name="client_name" class="form-control"
+                       value="{{ project.client_name if project else '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Локация</label>
+                <input type="text" name="location_text" class="form-control"
+                       value="{{ project.location_text if project else '' }}">
+            </div>
+            <div class="row">
+                <div class="col-md-8 mb-3">
+                    <label class="form-label">Сумма контракта</label>
+                    <input type="number" step="0.01" min="0" name="contract_amount" class="form-control"
+                           value="{{ project.contract_amount if project else '' }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Валюта</label>
+                    <input type="text" name="currency" class="form-control"
+                           value="{{ project.currency if project else 'AED' }}">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Дата начала</label>
+                    <input type="date" name="start_date" class="form-control"
+                           value="{{ project.start_date.strftime('%Y-%m-%d') if project and project.start_date else '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Срок работ (дни)</label>
+                    <input type="number" min="0" name="duration_days" class="form-control"
+                           value="{{ project.duration_days if project and project.duration_days else '' }}">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Статус</label>
+                <select name="status" class="form-select">
+                    {% for k, v in [('planned','Запланирован'),('active','В работе'),('on_hold','Пауза'),('completed','Завершён'),('cancelled','Отменён')] %}
+                    <option value="{{ k }}" {% if project and project.status == k %}selected{% endif %}>{{ v }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    {% if is_new %}Создать{% else %}Сохранить{% endif %}
+                </button>
+                {% if is_new %}
+                <a href="{{ url_for('projects.project_list') }}" class="btn btn-outline-secondary">Отмена</a>
+                {% else %}
+                <a href="{{ url_for('projects.project_detail', project_id=project.id) }}" class="btn btn-outline-secondary">Отмена</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

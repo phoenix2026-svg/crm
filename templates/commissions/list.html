@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Комиссионные — CRM{% endblock %}
+{% block content %}
+<h4 class="mb-3">Комиссионные</h4>
+
+<div class="table-responsive">
+<table class="table table-hover table-sm align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Проект</th>
+            <th class="text-end">Сумма контракта</th>
+            <th class="text-end">% комиссии</th>
+            <th class="text-end">Итого комиссия</th>
+            <th class="text-end">Получено</th>
+            <th class="text-end">Осталось</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in projects %}
+        {% set total_c = p.commission_total %}
+        {% set recv = p.commission_received + p.commission_received_from_variations %}
+        {% set pend = total_c + 0 - recv %}
+        <tr>
+            <td><a href="{{ url_for('projects.project_detail', project_id=p.id) }}">{{ p.project_name }}</a></td>
+            <td class="text-end text-nowrap">{{ '{:,.2f}'.format(p.contract_amount|float) }} {{ p.currency }}</td>
+            <td class="text-end">{{ '%.2f'|format(p.commission_percent|float) }}%</td>
+            <td class="text-end text-nowrap">{{ '{:,.2f}'.format(total_c) }}</td>
+            <td class="text-end text-nowrap text-success">{{ '{:,.2f}'.format(recv) }}</td>
+            <td class="text-end text-nowrap text-danger">{{ '{:,.2f}'.format(total_c - recv) }}</td>
+            <td>
+                <a href="{{ url_for('commissions.commission_detail', project_id=p.id) }}"
+                   class="btn btn-outline-primary btn-sm">Детали</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-3">
+            Нет проектов с назначенной комиссией.
+            <a href="{{ url_for('projects.project_list') }}">Откройте проект</a> и задайте % комиссии.
+        </td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if pagination.pages > 1 %}
+<nav>
+    <ul class="pagination pagination-sm justify-content-center">
+        {% if pagination.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.prev_num }}">&laquo;</a>
+        </li>
+        {% endif %}
+        {% for pg in pagination.iter_pages() %}
+            {% if pg %}
+            <li class="page-item {% if pg == pagination.page %}active{% endif %}">
+                <a class="page-link" href="?page={{ pg }}">{{ pg }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ pagination.next_num }}">&raquo;</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
